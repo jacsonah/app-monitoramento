@@ -12,7 +12,7 @@ import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.Stable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -32,8 +32,8 @@ import io.ktor.client.statement.readRawBytes
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.Clock
 import kotlinx.datetime.LocalDateTime
@@ -55,117 +55,80 @@ private val DateTimeFormat = LocalDateTime.Format {
     chars("00")
 }
 
-private val EmptyImageBitmap = ImageBitmap(width = 362, height = 252)
-
-@Stable
-class CameraState(isPlaying: Boolean = false, initialImage: ImageBitmap = EmptyImageBitmap) {
-    var isPlaying by mutableStateOf(isPlaying)
-    var image by mutableStateOf(initialImage)
-}
+private const val ImageWidth = 362
+private const val ImageHeight = 252
+private const val ImageAspectRatio = ImageWidth.toFloat() / ImageHeight.toFloat()
+private val EmptyImageBitmap = ImageBitmap(width = ImageWidth, height = ImageHeight)
 
 @Composable
 fun Camera(
     baseUrl: String,
-    state: CameraState,
+    isPlaying: Boolean,
     modifier: Modifier = Modifier,
 )
 {
     val httpClient = LocalHttpClient.current
-    val bufferCapacity = 10
-    val imageBuffer = remember {
-        ArrayDeque<ImageBitmap>(initialCapacity = bufferCapacity)
+    val imagesFlow = remember {
+        MutableSharedFlow<ImageBitmap>()
     }
+    val image = imagesFlow.collectAsState(initial = EmptyImageBitmap).value
 
-    LaunchedEffect(Unit) {
-        if (state.image === EmptyImageBitmap) {
-            val response = withContext(Dispatchers.IO) {
-                httpClient.get(
-                    urlString = buildString {
-                        append(
-                            baseUrl,
-                            Clock.System
-                                .now()
-                                .minus(1.minutes)
-                                .toLocalDateTime(timeZone = SystemDefaultTimeZone)
-                                .format(format = DateTimeFormat),
-                            ".jpg",
-                        )
+    suspend fun nextImage() {
+        val url  = buildString {
+            append(
+                baseUrl,
+                Clock.System
+                    .now()
+                    .minus(1.minutes)
+                    .toLocalDateTime(timeZone = SystemDefaultTimeZone)
+                    .format(format = DateTimeFormat),
+                ".jpg",
+            )
+        }
+
+        runCatching {
+            withContext(Dispatchers.IO) {
+                httpClient.get {
+                    url(urlString = url)
+                    timeout {
+                        requestTimeoutMillis = 1000
                     }
-                )
+                }
             }
-
+        }.onSuccess { response ->
             if (response.status == HttpStatusCode.OK) {
                 val bytes = response.readRawBytes()
-                state.image = BitmapFactory.decodeByteArray(bytes, 0, bytes.size).asImageBitmap()
+                imagesFlow.emit(
+                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size).asImageBitmap()
+                )
             }
         }
     }
 
-    LaunchedEffect(state.isPlaying) {
-        if (state.isPlaying) {
-            val semaphore = Semaphore(permits = bufferCapacity)
+    LaunchedEffect(Unit) {
+        if (image === EmptyImageBitmap) {
+            nextImage()
+        }
+    }
 
+    LaunchedEffect(isPlaying) {
+        if (isPlaying) {
             launch(context = Dispatchers.Default) {
                 while (true) {
-                    val url  = buildString {
-                        append(
-                            baseUrl,
-                            Clock.System
-                                .now()
-                                .minus(1.minutes)
-                                .toLocalDateTime(timeZone = SystemDefaultTimeZone)
-                                .format(format = DateTimeFormat),
-                            ".jpg",
-                        )
-                    }
-
-                    println(url)
-
                     launch {
-                        runCatching {
-                            withContext(Dispatchers.IO) {
-                                httpClient.get {
-                                    url(urlString = url)
-                                    timeout {
-                                        requestTimeoutMillis = 1000
-                                    }
-                                }
-                            }
-                        }.onSuccess { response ->
-                            if (response.status == HttpStatusCode.OK) {
-                                val bytes = response.readRawBytes()
-                                semaphore.acquire()
-                                imageBuffer.addLast(
-                                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size).asImageBitmap()
-                                )
-                            }
-                        }
+                        nextImage()
                     }
-
                     delay(1.seconds)
-                }
-            }
-
-            launch {
-                while (true) {
-                    imageBuffer
-                        .removeFirstOrNull()
-                        ?.let { firstImage ->
-                            state.image = firstImage
-                            semaphore.release()
-                        }
-
-                    delay(timeMillis = 33)
                 }
             }
         }
     }
 
     Image(
-        bitmap = state.image,
+        bitmap = image,
         contentDescription = null,
         modifier = Modifier
-            .aspectRatio(state.image.width.toFloat() / state.image.height.toFloat())
+            .aspectRatio(ImageAspectRatio)
             .then(modifier),
     )
 }
@@ -174,10 +137,13 @@ fun Camera(
 fun CameraCard(
     name: String,
     baseUrl: String,
-    state: CameraState,
     modifier: Modifier = Modifier,
 )
 {
+    var isPlaying by remember {
+        mutableStateOf(false)
+    }
+
     OutlinedCard(
         modifier = modifier
     )
@@ -192,18 +158,18 @@ fun CameraCard(
             contentAlignment = Alignment.BottomStart
         )
         {
-            Camera(baseUrl = baseUrl, state = state)
+            Camera(baseUrl = baseUrl, isPlaying = isPlaying)
 
             FilledTonalIconButton(
                 onClick = {
-                    state.isPlaying = !state.isPlaying
+                    isPlaying = !isPlaying
                 },
                 modifier = Modifier.padding(4.dp),
             )
             {
                 Icon(
                     painter = painterResource(
-                        id = when (state.isPlaying) {
+                        id = when (isPlaying) {
                             true -> R.drawable.pause
                             false -> R.drawable.play
                         }

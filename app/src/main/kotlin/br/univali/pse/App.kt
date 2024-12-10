@@ -1,7 +1,6 @@
 package br.univali.pse
 
 import androidx.compose.foundation.clickable
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -14,7 +13,6 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import br.univali.pse.data.Camera
 import br.univali.pse.ui.CameraCard
-import br.univali.pse.ui.CameraState
 import br.univali.pse.ui.screens.CameraScreen
 import br.univali.pse.ui.screens.CameraSettingsScreen
 import br.univali.pse.ui.screens.MainScreen
@@ -36,21 +34,13 @@ val LocalHttpClient = staticCompositionLocalOf<HttpClient> {
     error("HttpClient not provided!")
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun App()
 {
     val cameras = remember {
         listOf(
-            Camera(id = 0, name = "Câmera 1", baseUrl = "https://camerastamoios.vwi.com.br/KM20/KM%2020_"),
-            Camera(id = 1, name = "Câmera 2", baseUrl = "https://camerastamoios.vwi.com.br/KM47/KM%2047_"),
-            Camera(id = 2, name = "Câmera 3", baseUrl = "https://camerastamoios.vwi.com.br/KM65/KM%2065_"),
+            Camera(id = 0, name = "Câmera 3", baseUrl = "https://camerastamoios.vwi.com.br/KM65/KM%2065_"),
         )
-    }
-    val states = remember {
-        cameras.map {
-            CameraState()
-        }
     }
     val httpClient = remember {
         HttpClient()
@@ -70,7 +60,6 @@ fun App()
                         CameraCard(
                             name = cameras[index].name,
                             baseUrl = cameras[index].baseUrl,
-                            state = states[index],
                             modifier = Modifier.clickable {
                                 navController.navigate(AppRoutes.CameraScreen(id = index)) {
                                     launchSingleTop = true
@@ -86,7 +75,6 @@ fun App()
                 CameraScreen(
                     name = cameras[route.id].name,
                     baseUrl = cameras[route.id].baseUrl,
-                    state = states[route.id],
                     onBack = {
                         navController.popBackStack(route = route, inclusive = true)
                     },

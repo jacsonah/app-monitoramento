@@ -13,21 +13,18 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import br.univali.pse.R
 import br.univali.pse.ui.Camera
-import br.univali.pse.ui.CameraState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CameraScreen(
     name: String,
     baseUrl: String,
-    state: CameraState,
     onBack: () -> Unit,
     onSettings: () -> Unit,
 )
@@ -62,14 +59,7 @@ fun CameraScreen(
             modifier = Modifier.padding(paddingValues = it)
         )
         {
-            Camera(
-                baseUrl = baseUrl,
-                state = remember {
-                    state.apply {
-                        isPlaying = true
-                    }
-                },
-            )
+            Camera(baseUrl = baseUrl, isPlaying = true)
 
             Column(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
