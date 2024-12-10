@@ -59,7 +59,7 @@ fun CameraScreen(
             modifier = Modifier.padding(paddingValues = it)
         )
         {
-            Camera(baseUrl = baseUrl, isPlaying = true)
+            Camera(url = baseUrl, isPlaying = true)
 
             Column(
                 verticalArrangement = Arrangement.spacedBy(8.dp),

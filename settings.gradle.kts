@@ -19,5 +19,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "PSE"
+rootProject.name = "Monitoramento"
 include(":app")

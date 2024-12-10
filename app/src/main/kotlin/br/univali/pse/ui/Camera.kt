@@ -35,63 +35,33 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.datetime.Clock
-import kotlinx.datetime.LocalDateTime
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.format
-import kotlinx.datetime.toLocalDateTime
-import kotlin.time.Duration.Companion.minutes
-import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Duration.Companion.milliseconds
 
-private val SystemDefaultTimeZone = TimeZone.currentSystemDefault()
-
-private val DateTimeFormat = LocalDateTime.Format {
-    yearTwoDigits(baseYear = 2024)
-    monthNumber()
-    dayOfMonth()
-    hour()
-    minute()
-    second()
-    chars("00")
-}
-
-private const val ImageWidth = 362
-private const val ImageHeight = 252
+private const val ImageWidth = 640
+private const val ImageHeight = 480
 private const val ImageAspectRatio = ImageWidth.toFloat() / ImageHeight.toFloat()
 private val EmptyImageBitmap = ImageBitmap(width = ImageWidth, height = ImageHeight)
 
 @Composable
 fun Camera(
-    baseUrl: String,
+    url: String,
     isPlaying: Boolean,
     modifier: Modifier = Modifier,
 )
 {
     val httpClient = LocalHttpClient.current
     val imagesFlow = remember {
-        MutableSharedFlow<ImageBitmap>()
+        MutableSharedFlow<ImageBitmap>(extraBufferCapacity = 10)
     }
     val image = imagesFlow.collectAsState(initial = EmptyImageBitmap).value
 
     suspend fun nextImage() {
-        val url  = buildString {
-            append(
-                baseUrl,
-                Clock.System
-                    .now()
-                    .minus(1.minutes)
-                    .toLocalDateTime(timeZone = SystemDefaultTimeZone)
-                    .format(format = DateTimeFormat),
-                ".jpg",
-            )
-        }
-
         runCatching {
             withContext(Dispatchers.IO) {
                 httpClient.get {
                     url(urlString = url)
                     timeout {
-                        requestTimeoutMillis = 1000
+                        requestTimeoutMillis = 500
                     }
                 }
             }
@@ -102,6 +72,8 @@ fun Camera(
                     BitmapFactory.decodeByteArray(bytes, 0, bytes.size).asImageBitmap()
                 )
             }
+        }.onFailure {
+            println(it.message)
         }
     }
 
@@ -113,13 +85,11 @@ fun Camera(
 
     LaunchedEffect(isPlaying) {
         if (isPlaying) {
-            launch(context = Dispatchers.Default) {
-                while (true) {
-                    launch {
-                        nextImage()
-                    }
-                    delay(1.seconds)
+            while (true) {
+                launch(context = Dispatchers.Default) {
+                    nextImage()
                 }
+                delay(30.milliseconds)
             }
         }
     }
@@ -136,7 +106,7 @@ fun Camera(
 @Composable
 fun CameraCard(
     name: String,
-    baseUrl: String,
+    url: String,
     modifier: Modifier = Modifier,
 )
 {
@@ -158,7 +128,7 @@ fun CameraCard(
             contentAlignment = Alignment.BottomStart
         )
         {
-            Camera(baseUrl = baseUrl, isPlaying = isPlaying)
+            Camera(url = url, isPlaying = isPlaying)
 
             FilledTonalIconButton(
                 onClick = {

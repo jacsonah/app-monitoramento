@@ -38,9 +38,9 @@ val LocalHttpClient = staticCompositionLocalOf<HttpClient> {
 fun App()
 {
     val cameras = remember {
-        listOf(
-            Camera(id = 0, name = "Câmera 3", baseUrl = "https://camerastamoios.vwi.com.br/KM65/KM%2065_"),
-        )
+        List(size = 1) { index ->
+            Camera(id = index, name = "Câmera ${index + 1}", url = "http://172.20.10.3/")
+        }
     }
     val httpClient = remember {
         HttpClient()
@@ -59,7 +59,7 @@ fun App()
                     cameraItem = { index ->
                         CameraCard(
                             name = cameras[index].name,
-                            baseUrl = cameras[index].baseUrl,
+                            url = cameras[index].url,
                             modifier = Modifier.clickable {
                                 navController.navigate(AppRoutes.CameraScreen(id = index)) {
                                     launchSingleTop = true
@@ -74,7 +74,7 @@ fun App()
                 val route = backStackEntry.toRoute<AppRoutes.CameraScreen>()
                 CameraScreen(
                     name = cameras[route.id].name,
-                    baseUrl = cameras[route.id].baseUrl,
+                    baseUrl = cameras[route.id].url,
                     onBack = {
                         navController.popBackStack(route = route, inclusive = true)
                     },
